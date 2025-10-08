@@ -10,7 +10,7 @@ class MXMerchantService {
   constructor() {
     this.apiUrl = process.env.MX_MERCHANT_API_URL;
     this.merchantId = process.env.MX_MERCHANT_MERCHANT_ID;
-    this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://sandbox.mxmerchant.com';
+    this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://sandbox-app.mxmerchant.com';
     this.logger = new Logger({ service: 'MXMerchantService' });
     this.link2PayDeviceUDID = null; // Cache for device UDID
 
