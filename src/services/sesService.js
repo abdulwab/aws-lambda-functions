@@ -7,7 +7,7 @@ const Logger = require('../utils/logger');
 
 class SESService {
   constructor() {
-    this.region = process.env.AWS_REGION || 'us-east-2';
+    this.region = process.env.SES_REGION || process.env.AWS_REGION || 'us-east-2';
     this.fromEmail = process.env.SES_FROM_EMAIL;
     this.logger = new Logger({ service: 'SESService' });
 
