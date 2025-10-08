@@ -1,0 +1,132 @@
+═══════════════════════════════════════════════════════════════
+  AWS LAMBDA CONSOLE - What You'll See
+═══════════════════════════════════════════════════════════════
+
+When you open: https://us-east-1.console.aws.amazon.com/lambda/home?region=us-east-1#/functions
+
+┌─────────────────────────────────────────────────────────────┐
+│  AWS Lambda > Functions                        [us-east-1]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  [Search functions...]                      [Create function]│
+│                                                               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ Function name                    | Runtime | Last mod  │  │
+│  ├───────────────────────────────────────────────────────┤  │
+│  │ mx-lambda-api-dev-createPaymentLink                    │  │
+│  │                                  Node.js 18.x  Just now│  │
+│  │ POST /payment-links - Creates payment links           │  │
+│  ├───────────────────────────────────────────────────────┤  │
+│  │ mx-lambda-api-dev-handleWebhook                        │  │
+│  │                                  Node.js 18.x  Just now│  │
+│  │ POST /webhook - Processes MX webhooks                 │  │
+│  ├───────────────────────────────────────────────────────┤  │
+│  │ mx-lambda-api-dev-getPaymentStatus                     │  │
+│  │                                  Node.js 18.x  Just now│  │
+│  │ GET /payment-links/{id} - Gets payment status         │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+
+Click on ANY function to see:
+
+┌─────────────────────────────────────────────────────────────┐
+│  mx-lambda-api-dev-createPaymentLink                   [Edit]│
+├─────────────────────────────────────────────────────────────┤
+│  [Code] [Test] [Monitor] [Configuration] [Aliases] [Version]│
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  Code source                                                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ src/                                                 │    │
+│  │  ├─ handlers/                                        │    │
+│  │  │  ├─ createPaymentLink.js         <-- YOUR CODE   │    │
+│  │  │  ├─ getPaymentStatus.js                          │    │
+│  │  │  └─ handleWebhook.js                             │    │
+│  │  ├─ services/                                        │    │
+│  │  │  ├─ mxMerchantService.js                         │    │
+│  │  │  ├─ dynamoService.js                             │    │
+│  │  │  └─ twilioService.js                             │    │
+│  │  └─ utils/                                           │    │
+│  │     ├─ logger.js                                     │    │
+│  │     └─ response.js                                   │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                               │
+│  Runtime: Node.js 18.x                                       │
+│  Memory: 1024 MB                                             │
+│  Timeout: 6 seconds                                          │
+│  Last modified: Just now                                     │
+│                                                               │
+│  Environment variables:                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ MX_MERCHANT_API_URL = https://sandbox...            │    │
+│  │ MX_MERCHANT_CONSUMER_KEY = OjWxi...                 │    │
+│  │ MX_MERCHANT_MERCHANT_ID = 1000131016                │    │
+│  │ TWILIO_ACCOUNT_SID = AC9f7...                       │    │
+│  │ TWILIO_PHONE_NUMBER = +17209277409                  │    │
+│  │ DYNAMODB_TABLE = mx-lambda-api-dev-payment-links    │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                               │
+│  [View CloudWatch logs]  [Test function]  [Deploy]          │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+  API GATEWAY - Your HTTP Endpoints
+═══════════════════════════════════════════════════════════════
+
+Open: https://us-east-1.console.aws.amazon.com/apigateway/
+
+┌─────────────────────────────────────────────────────────────┐
+│  API: mx-lambda-api-dev                                      │
+├─────────────────────────────────────────────────────────────┤
+│  Resources:                                                   │
+│    /                                                          │
+│    ├── /payment-links                                        │
+│    │   ├── POST → createPaymentLink                          │
+│    │   └── /{id}                                             │
+│    │       └── GET → getPaymentStatus                        │
+│    └── /webhook                                              │
+│        └── POST → handleWebhook                              │
+│                                                               │
+│  Stage: dev                                                  │
+│  Invoke URL:                                                 │
+│  https://mnt4wit22f.execute-api.us-east-1.amazonaws.com/dev │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+  DYNAMODB - Your Database
+═══════════════════════════════════════════════════════════════
+
+Open: https://us-east-1.console.aws.amazon.com/dynamodbv2/
+
+┌─────────────────────────────────────────────────────────────┐
+│  Table: mx-lambda-api-dev-payment-links                      │
+├─────────────────────────────────────────────────────────────┤
+│  Primary key: paymentLinkId (String)                         │
+│  Billing mode: On-demand (pay per request)                   │
+│  Items: 0  (will populate after first payment)              │
+│                                                               │
+│  [Explore items] [Create item] [Query] [Scan]               │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+  CLOUDWATCH LOGS - View Execution Logs
+═══════════════════════════════════════════════════════════════
+
+Open: https://us-east-1.console.aws.amazon.com/cloudwatch/
+
+┌─────────────────────────────────────────────────────────────┐
+│  Log groups:                                                  │
+│  ├─ /aws/lambda/mx-lambda-api-dev-createPaymentLink         │
+│  ├─ /aws/lambda/mx-lambda-api-dev-handleWebhook             │
+│  └─ /aws/lambda/mx-lambda-api-dev-getPaymentStatus          │
+│                                                               │
+│  Click any log group to see:                                 │
+│  - Every function execution                                  │
+│  - Console.log outputs                                       │
+│  - Errors and stack traces                                   │
+│  - Request/response data                                     │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
