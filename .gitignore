@@ -39,3 +39,9 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Files containing credentials/secrets
+CHECK_CREDENTIALS.md
+*CREDENTIALS*.md
+*SECRET*.md
+*PASSWORD*.md
