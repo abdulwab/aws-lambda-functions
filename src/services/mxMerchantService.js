@@ -9,19 +9,35 @@ const Logger = require('../utils/logger');
 class MXMerchantService {
   constructor() {
     this.apiUrl = process.env.MX_MERCHANT_API_URL;
-    this.apiKey = process.env.MX_MERCHANT_CONSUMER_KEY;
-    this.apiSecret = process.env.MX_MERCHANT_CONSUMER_SECRET;
     this.merchantId = process.env.MX_MERCHANT_MERCHANT_ID;
     this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://sandbox.mxmerchant.com';
     this.logger = new Logger({ service: 'MXMerchantService' });
     this.link2PayDeviceUDID = null; // Cache for device UDID
 
-    if (!this.apiUrl || !this.apiKey || !this.apiSecret || !this.merchantId) {
-      throw new Error('MX Merchant credentials not configured');
+    // Support two authentication methods:
+    // 1. Consumer Key/Secret (Production)
+    // 2. Username/Password (Sandbox)
+    const consumerKey = process.env.MX_MERCHANT_CONSUMER_KEY;
+    const consumerSecret = process.env.MX_MERCHANT_CONSUMER_SECRET;
+    const username = process.env.MX_USERNAME;
+    const password = process.env.MX_PASSWORD;
+
+    let auth;
+    if (consumerKey && consumerSecret) {
+      // Use Consumer Key/Secret authentication
+      auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+      this.logger.info('Using Consumer Key/Secret authentication');
+    } else if (username && password) {
+      // Use Username/Password authentication
+      auth = Buffer.from(`${username}:${password}`).toString('base64');
+      this.logger.info('Using Username/Password authentication');
+    } else {
+      throw new Error('MX Merchant credentials not configured. Need either Consumer Key/Secret or Username/Password');
     }
 
-    // Create Basic Auth token
-    const auth = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64');
+    if (!this.apiUrl || !this.merchantId) {
+      throw new Error('MX Merchant API URL and Merchant ID are required');
+    }
 
     // Create axios instance with Basic Auth
     this.client = axios.create({
