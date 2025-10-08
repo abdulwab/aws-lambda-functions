@@ -12,7 +12,7 @@ class MXMerchantService {
     this.apiKey = process.env.MX_MERCHANT_CONSUMER_KEY;
     this.apiSecret = process.env.MX_MERCHANT_CONSUMER_SECRET;
     this.merchantId = process.env.MX_MERCHANT_MERCHANT_ID;
-    this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://pay.mxmerchant.com';
+    this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://mxmerchant.com';
     this.logger = new Logger({ service: 'MXMerchantService' });
     this.link2PayDeviceUDID = null; // Cache for device UDID
 
