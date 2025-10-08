@@ -1,5 +1,6 @@
 /**
  * MX Merchant API service for creating and managing payment links
+ * Uses Link2Pay hosted payment pages
  */
 
 const axios = require('axios');
@@ -8,31 +9,93 @@ const Logger = require('../utils/logger');
 class MXMerchantService {
   constructor() {
     this.apiUrl = process.env.MX_MERCHANT_API_URL;
-    this.consumerKey = process.env.MX_MERCHANT_CONSUMER_KEY;
-    this.consumerSecret = process.env.MX_MERCHANT_CONSUMER_SECRET;
+    this.apiKey = process.env.MX_MERCHANT_CONSUMER_KEY;
+    this.apiSecret = process.env.MX_MERCHANT_CONSUMER_SECRET;
     this.merchantId = process.env.MX_MERCHANT_MERCHANT_ID;
+    this.paymentPageBaseURL = process.env.MX_PAYMENT_PAGE_URL || 'https://pay.mxmerchant.com';
     this.logger = new Logger({ service: 'MXMerchantService' });
+    this.link2PayDeviceUDID = null; // Cache for device UDID
 
-    if (!this.apiUrl || !this.consumerKey || !this.consumerSecret || !this.merchantId) {
+    if (!this.apiUrl || !this.apiKey || !this.apiSecret || !this.merchantId) {
       throw new Error('MX Merchant credentials not configured');
     }
 
-    // Create axios instance with default config
+    // Create Basic Auth token
+    const auth = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64');
+
+    // Create axios instance with Basic Auth
     this.client = axios.create({
       baseURL: this.apiUrl,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.consumerKey}`,
-        'X-Merchant-ID': this.merchantId
+        'Authorization': `Basic ${auth}`
       },
       timeout: 30000
     });
   }
 
   /**
-   * Create a new payment link
+   * Get or create Link2Pay device for hosted payment pages
+   * @returns {Promise<string>} Device UDID
+   */
+  async getLink2PayDevice() {
+    // Return cached UDID if available
+    if (this.link2PayDeviceUDID) {
+      return this.link2PayDeviceUDID;
+    }
+
+    try {
+      // Try to get existing Link2Pay devices
+      const listResponse = await this.client.get('/device', {
+        params: {
+          merchantId: this.merchantId,
+          deviceType: 'Link2Pay'
+        }
+      });
+
+      // Use first enabled Link2Pay device
+      if (listResponse.data && listResponse.data.length > 0) {
+        const existingDevice = listResponse.data.find(
+          device => device.enabled && device.deviceType === 'Link2Pay'
+        );
+        
+        if (existingDevice) {
+          this.link2PayDeviceUDID = existingDevice.UDID;
+          this.logger.info('Using existing Link2Pay device', { udid: this.link2PayDeviceUDID });
+          return this.link2PayDeviceUDID;
+        }
+      }
+
+      // Create new Link2Pay device if none exists
+      const timestamp = Date.now();
+      const deviceData = {
+        name: `Payment Link API ${timestamp}`,
+        description: 'Hosted payment page for API',
+        deviceType: 'Link2Pay',
+        merchantId: parseInt(this.merchantId),
+        enabled: true,
+        onSuccessUrl: 'https://celebrationchevrolet.com/payment/success',
+        onFailureUrl: 'https://celebrationchevrolet.com/payment/cancel'
+      };
+
+      const response = await this.client.post('/device?echo=true', deviceData);
+      this.link2PayDeviceUDID = response.data.UDID;
+      this.logger.info('Created new Link2Pay device', { udid: this.link2PayDeviceUDID });
+      return this.link2PayDeviceUDID;
+
+    } catch (error) {
+      this.logger.error('Failed to get/create Link2Pay device', {
+        error: error.message,
+        response: error.response?.data
+      });
+      throw new Error(`Link2Pay device error: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Create a new payment link using Link2Pay hosted page
    * @param {Object} paymentData - Payment link creation data
-   * @returns {Promise<Object>} - Payment link response
+   * @returns {Promise<Object>} - Payment link response with hosted URL
    */
   async createPaymentLink(paymentData) {
     try {
@@ -41,51 +104,66 @@ class MXMerchantService {
         currency = 'USD',
         invoice,
         customer,
-        redirectUrl,
-        cancelUrl,
         lineItems = []
       } = paymentData;
 
-      const requestBody = {
-        amount: parseFloat(amount),
-        currency,
-        invoice: {
-          number: invoice.number,
-          description: invoice.description || `Payment for ${invoice.number}`
-        },
-        customer: {
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone
-        },
-        redirectUrl,
-        cancelUrl,
-        lineItems: lineItems.map(item => ({
-          description: item.description,
-          quantity: item.quantity || 1,
-          unitPrice: parseFloat(item.unitPrice),
-          totalPrice: parseFloat(item.totalPrice)
-        }))
-      };
-
-      this.logger.info('Creating payment link', {
+      this.logger.info('Creating Link2Pay payment URL', {
         invoiceNumber: invoice.number,
         amount,
         customerEmail: customer.email
       });
 
-      const response = await this.client.post('/paymentLinks', requestBody);
+      // Get or create Link2Pay device
+      const udid = await this.getLink2PayDevice();
+
+      // Build query parameters for hosted payment page
+      const params = new URLSearchParams({
+        Amt: parseFloat(amount).toFixed(2),
+        InvoiceNo: invoice.number,
+        CustomerName: customer.name,
+        CustomerEmail: customer.email
+      });
+
+      // Add optional phone
+      if (customer.phone) {
+        params.append('CustomerPhone', customer.phone);
+      }
+
+      // Add description/memo
+      if (invoice.description) {
+        params.append('Memo', invoice.description);
+      }
+
+      // Add line items if provided
+      if (lineItems && lineItems.length > 0) {
+        lineItems.forEach((item, index) => {
+          if (item.description) {
+            params.append(`Item${index + 1}Description`, item.description);
+          }
+          if (item.unitPrice || item.totalPrice) {
+            const itemAmount = item.totalPrice || (item.unitPrice * (item.quantity || 1));
+            params.append(`Item${index + 1}Amount`, parseFloat(itemAmount).toFixed(2));
+          }
+          if (item.quantity) {
+            params.append(`Item${index + 1}Quantity`, item.quantity);
+          }
+        });
+      }
+
+      // Construct the hosted payment URL
+      const checkoutUrl = `${this.paymentPageBaseURL}/Link2Pay/${udid}?${params.toString()}`;
 
       this.logger.info('Payment link created successfully', {
-        paymentLinkId: response.data.id,
-        checkoutUrl: response.data.checkoutUrl,
+        udid,
+        checkoutUrl,
         invoiceNumber: invoice.number
       });
 
       return {
         success: true,
-        paymentLinkId: response.data.id,
-        checkoutUrl: response.data.checkoutUrl,
+        paymentLinkId: `link2pay_${Date.now()}`, // Generate unique ID
+        mxPaymentLinkId: udid, // Store device UDID
+        checkoutUrl,
         status: 'created'
       };
 
