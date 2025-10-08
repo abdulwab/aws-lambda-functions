@@ -1,0 +1,178 @@
+{
+  "info": {
+    "name": "MX Lambda API",
+    "description": "AWS Lambda API for MX Merchant payment processing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://mnt4wit22f.execute-api.us-east-1.amazonaws.com/dev",
+      "type": "string"
+    },
+    {
+      "key": "payment_link_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Create Payment Link",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 487.50,\n  \"currency\": \"USD\",\n  \"invoice\": {\n    \"number\": \"RO-252656\",\n    \"description\": \"Brake Service Complete - 2019 Silverado 1500\"\n  },\n  \"customer\": {\n    \"name\": \"Sarah Johnson\",\n    \"email\": \"sarah.johnson@email.com\",\n    \"phone\": \"+15551234567\"\n  },\n  \"lineItems\": [\n    {\n      \"description\": \"Brake Pad Replacement\",\n      \"quantity\": 1,\n      \"unitPrice\": 150.00,\n      \"totalPrice\": 150.00\n    },\n    {\n      \"description\": \"Brake Rotor Resurfacing\",\n      \"quantity\": 2,\n      \"unitPrice\": 75.00,\n      \"totalPrice\": 150.00\n    },\n    {\n      \"description\": \"Labor - Brake Service\",\n      \"quantity\": 2.5,\n      \"unitPrice\": 75.00,\n      \"totalPrice\": 187.50\n    }\n  ],\n  \"sendSMS\": false,\n  \"redirectUrl\": \"https://celebrationchevrolet.com/payment/success\",\n  \"cancelUrl\": \"https://celebrationchevrolet.com/payment/cancel\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payment-links",
+          "host": ["{{base_url}}"],
+          "path": ["payment-links"]
+        },
+        "description": "Creates a new payment link for customer invoices"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "    const response = pm.response.json();",
+              "    if (response.success && response.data.paymentLinkId) {",
+              "        pm.collectionVariables.set('payment_link_id', response.data.paymentLinkId);",
+              "        console.log('Payment Link ID saved:', response.data.paymentLinkId);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Get Payment Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payment-links/{{payment_link_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["payment-links", "{{payment_link_id}}"]
+        },
+        "description": "Retrieves the current status of a payment link"
+      },
+      "response": []
+    },
+    {
+      "name": "3. Webhook - Payment Completed",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentLinkId\": \"pl_12345abc\",\n  \"eventType\": \"payment.completed\",\n  \"status\": \"completed\",\n  \"amount\": 487.50,\n  \"currency\": \"USD\",\n  \"transactionId\": \"txn_12345\",\n  \"timestamp\": \"2024-01-15T10:45:00Z\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhook",
+          "host": ["{{base_url}}"],
+          "path": ["webhook"]
+        },
+        "description": "Simulates a webhook notification from MX Merchant for completed payment"
+      },
+      "response": []
+    },
+    {
+      "name": "4. Webhook - Payment Failed",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentLinkId\": \"pl_12345abc\",\n  \"eventType\": \"payment.failed\",\n  \"status\": \"failed\",\n  \"amount\": 487.50,\n  \"currency\": \"USD\",\n  \"timestamp\": \"2024-01-15T10:45:00Z\",\n  \"failureReason\": \"Insufficient funds\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhook",
+          "host": ["{{base_url}}"],
+          "path": ["webhook"]
+        },
+        "description": "Simulates a webhook notification from MX Merchant for failed payment"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Payment Link - Minimal",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 99.99,\n  \"invoice\": {\n    \"number\": \"TEST-123\"\n  },\n  \"customer\": {\n    \"name\": \"Test Customer\",\n    \"email\": \"test@example.com\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payment-links",
+          "host": ["{{base_url}}"],
+          "path": ["payment-links"]
+        },
+        "description": "Minimal request with only required fields"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Payment Link - Small Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 50.00,\n  \"currency\": \"USD\",\n  \"invoice\": {\n    \"number\": \"INV-001\",\n    \"description\": \"Oil Change Service\"\n  },\n  \"customer\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+15551234567\"\n  },\n  \"sendSMS\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payment-links",
+          "host": ["{{base_url}}"],
+          "path": ["payment-links"]
+        },
+        "description": "Example for a small payment amount"
+      },
+      "response": []
+    }
+  ]
+}
