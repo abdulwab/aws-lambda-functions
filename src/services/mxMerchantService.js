@@ -60,6 +60,14 @@ class MXMerchantService {
       return this.link2PayDeviceUDID;
     }
 
+    // Check for fixed UDID from environment
+    const fixedUDID = process.env.MX_LINK2PAY_DEVICE_UDID;
+    if (fixedUDID) {
+      this.link2PayDeviceUDID = fixedUDID;
+      this.logger.info('Using fixed Link2Pay device UDID from environment', { udid: fixedUDID });
+      return fixedUDID;
+    }
+
     try {
       // Try to get existing Link2Pay devices
       const listResponse = await this.client.get('/device', {
