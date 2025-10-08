@@ -11,11 +11,11 @@ provider:
     STAGE: ${self:provider.stage}
     SES_REGION: ${env:SES_REGION, 'us-east-2'}
     DYNAMODB_TABLE: ${self:service}-${self:provider.stage}-payment-links
-    MX_MERCHANT_API_URL: ${env:MX_MERCHANT_API_URL, 'https://api.mxmerchant.com/checkout/v3'}
+    MX_MERCHANT_API_URL: ${env:MX_MERCHANT_API_URL, 'https://sandbox.api.mxmerchant.com/checkout/v3'}
     MX_MERCHANT_CONSUMER_KEY: ${env:MX_MERCHANT_CONSUMER_KEY}
     MX_MERCHANT_CONSUMER_SECRET: ${env:MX_MERCHANT_CONSUMER_SECRET}
     MX_MERCHANT_MERCHANT_ID: ${env:MX_MERCHANT_MERCHANT_ID}
-    MX_PAYMENT_PAGE_URL: ${env:MX_PAYMENT_PAGE_URL, 'https://mxmerchant.com'}
+    MX_PAYMENT_PAGE_URL: ${env:MX_PAYMENT_PAGE_URL, 'https://sandbox.mxmerchant.com'}
     TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
     TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
     TWILIO_PHONE_NUMBER: ${env:TWILIO_PHONE_NUMBER}
