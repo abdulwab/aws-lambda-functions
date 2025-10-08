@@ -1,0 +1,93 @@
+service: mx-lambda-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}-payment-links
+    MX_MERCHANT_API_URL: ${env:MX_MERCHANT_API_URL, 'https://sandbox.api.mxmerchant.com/checkout/v3'}
+    MX_MERCHANT_CONSUMER_KEY: ${env:MX_MERCHANT_CONSUMER_KEY}
+    MX_MERCHANT_CONSUMER_SECRET: ${env:MX_MERCHANT_CONSUMER_SECRET}
+    MX_MERCHANT_MERCHANT_ID: ${env:MX_MERCHANT_MERCHANT_ID}
+    TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
+    TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
+    TWILIO_PHONE_NUMBER: ${env:TWILIO_PHONE_NUMBER}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+functions:
+  createPaymentLink:
+    handler: src/handlers/createPaymentLink.handler
+    events:
+      - http:
+          path: /payment-links
+          method: post
+          cors: true
+    environment:
+      FUNCTION_NAME: createPaymentLink
+
+  handleWebhook:
+    handler: src/handlers/handleWebhook.handler
+    events:
+      - http:
+          path: /webhook
+          method: post
+          cors: true
+    environment:
+      FUNCTION_NAME: handleWebhook
+
+  getPaymentStatus:
+    handler: src/handlers/getPaymentStatus.handler
+    events:
+      - http:
+          path: /payment-links/{id}
+          method: get
+          cors: true
+    environment:
+      FUNCTION_NAME: getPaymentStatus
+
+resources:
+  Resources:
+    PaymentLinksTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions:
+          - AttributeName: paymentLinkId
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: paymentLinkId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CreatedAtIndex
+            KeySchema:
+              - AttributeName: createdAt
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+# No plugins needed for AWS deployment

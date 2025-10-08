@@ -1,0 +1,32 @@
+{
+  "name": "mx-lambda-api",
+  "version": "1.0.0",
+  "description": "Lambda API for MX Merchant checkout integration",
+  "main": "src/handlers/createPaymentLink.js",
+  "scripts": {
+    "test": "jest",
+    "deploy": "serverless deploy",
+    "deploy:dev": "serverless deploy --stage dev",
+    "deploy:prod": "serverless deploy --stage prod"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1490.0",
+    "axios": "^1.6.0",
+    "twilio": "^4.19.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "serverless": "^3.38.0"
+  },
+  "keywords": [
+    "lambda",
+    "api-gateway",
+    "mx-merchant",
+    "payment",
+    "checkout"
+  ],
+  "author": "Celebration Chevrolet",
+  "license": "MIT",
+  "packageManager": "yarn@4.10.3"
+}
