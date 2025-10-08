@@ -37,6 +37,8 @@ class DynamoService {
         invoice: paymentLinkData.invoice,
         customer: paymentLinkData.customer,
         lineItems: paymentLinkData.lineItems || [],
+        smsStatus: 'pending', // SMS notification status
+        emailStatus: 'pending', // Email notification status
         createdAt: now,
         updatedAt: now,
         ttl: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days TTL
@@ -230,6 +232,84 @@ class DynamoService {
       });
 
       throw new Error(`Failed to query payment links by customer: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update notification status (SMS and/or Email)
+   * @param {string} paymentLinkId - Payment link ID
+   * @param {Object} notificationStatus - Notification status object
+   * @returns {Promise<Object>} - Updated record
+   */
+  async updateNotificationStatus(paymentLinkId, notificationStatus) {
+    try {
+      const now = new Date().toISOString();
+      const updateParts = ['updatedAt = :updatedAt'];
+      const expressionAttributeValues = { ':updatedAt': now };
+
+      // Add SMS status if provided
+      if (notificationStatus.smsStatus) {
+        updateParts.push('smsStatus = :smsStatus');
+        expressionAttributeValues[':smsStatus'] = notificationStatus.smsStatus;
+        
+        if (notificationStatus.smsMessageSid) {
+          updateParts.push('smsMessageSid = :smsMessageSid');
+          expressionAttributeValues[':smsMessageSid'] = notificationStatus.smsMessageSid;
+        }
+        
+        if (notificationStatus.smsSentAt) {
+          updateParts.push('smsSentAt = :smsSentAt');
+          expressionAttributeValues[':smsSentAt'] = notificationStatus.smsSentAt;
+        }
+      }
+
+      // Add Email status if provided
+      if (notificationStatus.emailStatus) {
+        updateParts.push('emailStatus = :emailStatus');
+        expressionAttributeValues[':emailStatus'] = notificationStatus.emailStatus;
+        
+        if (notificationStatus.emailMessageId) {
+          updateParts.push('emailMessageId = :emailMessageId');
+          expressionAttributeValues[':emailMessageId'] = notificationStatus.emailMessageId;
+        }
+        
+        if (notificationStatus.emailSentAt) {
+          updateParts.push('emailSentAt = :emailSentAt');
+          expressionAttributeValues[':emailSentAt'] = notificationStatus.emailSentAt;
+        }
+      }
+
+      const updateExpression = 'SET ' + updateParts.join(', ');
+
+      this.logger.info('Updating notification status', {
+        paymentLinkId,
+        smsStatus: notificationStatus.smsStatus,
+        emailStatus: notificationStatus.emailStatus
+      });
+
+      const result = await this.dynamodb.update({
+        TableName: this.tableName,
+        Key: { paymentLinkId },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ReturnValues: 'ALL_NEW'
+      }).promise();
+
+      this.logger.info('Notification status updated', {
+        paymentLinkId,
+        smsStatus: result.Attributes.smsStatus,
+        emailStatus: result.Attributes.emailStatus
+      });
+
+      return result.Attributes;
+
+    } catch (error) {
+      this.logger.error('Failed to update notification status', {
+        error: error.message,
+        paymentLinkId
+      });
+
+      throw new Error(`Failed to update notification status: ${error.message}`);
     }
   }
 }
