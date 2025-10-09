@@ -117,9 +117,9 @@ class MXMerchantService {
   }
 
   /**
-   * Create a new payment link using Link2Pay hosted page
-   * @param {Object} paymentData - Payment link creation data
-   * @returns {Promise<Object>} - Payment link response with hosted URL
+   * Create a new invoice using MX Invoice API
+   * @param {Object} paymentData - Payment/Invoice creation data
+   * @returns {Promise<Object>} - Invoice response with payment link
    */
   async createPaymentLink(paymentData) {
     try {
@@ -131,74 +131,129 @@ class MXMerchantService {
         lineItems = []
       } = paymentData;
 
-      this.logger.info('Creating Link2Pay payment URL', {
+      this.logger.info('Creating MX Invoice', {
         invoiceNumber: invoice.number,
         amount,
         customerEmail: customer.email
       });
 
-      // Get or create Link2Pay device
-      const udid = await this.getLink2PayDevice();
+      // Build purchases array from lineItems or create default
+      const purchases = lineItems && lineItems.length > 0 
+        ? lineItems.map(item => ({
+            id: -1,
+            productName: item.description || 'Service',
+            price: parseFloat(item.unitPrice || item.totalPrice || amount),
+            quantity: item.quantity || 1,
+            discount: 0,
+            totalAmount: parseFloat(item.totalPrice || (item.unitPrice * (item.quantity || 1))).toFixed(2),
+            taxCategory: {
+              name: 'No Tax',
+              code: 'No Tax',
+              id: -1,
+              taxRate: 0
+            }
+          }))
+        : [{
+            id: -1,
+            productName: invoice.description || 'Payment',
+            price: parseFloat(amount),
+            quantity: 1,
+            discount: 0,
+            totalAmount: parseFloat(amount).toFixed(2),
+            taxCategory: {
+              name: 'No Tax',
+              code: 'No Tax',
+              id: -1,
+              taxRate: 0
+            }
+          }];
 
-      // Build query parameters for hosted payment page
-      const params = new URLSearchParams({
-        Amt: parseFloat(amount).toFixed(2),
-        InvoiceNo: invoice.number,
-        CustomerName: customer.name,
-        CustomerEmail: customer.email
-      });
+      // Create invoice
+      const invoiceData = {
+        merchantId: parseInt(this.merchantId),
+        status: 'Unpaid',
+        isClick2PayEnabled: true,
+        allowCreditCard: true,
+        allowACH: false,
+        terms: 'OnReceipt',
+        purchases,
+        customer: {
+          name: customer.name,
+          email: customer.email,
+          mobile: customer.phone || ''
+        }
+      };
 
-      // Add optional phone
-      if (customer.phone) {
-        params.append('CustomerPhone', customer.phone);
-      }
+      const response = await this.client.post('/invoice?echo=true', invoiceData);
+      
+      const invoiceId = response.data.id;
+      const invoiceNumber = response.data.invoiceNumber;
+      const accessCode = response.data.accessCode;
 
-      // Add description/memo
-      if (invoice.description) {
-        params.append('Memo', invoice.description);
-      }
+      // Construct payment URL with access code
+      const checkoutUrl = `${this.paymentPageBaseURL}/checkout/invoice/${invoiceId}?code=${accessCode}`;
 
-      // Add line items if provided
-      if (lineItems && lineItems.length > 0) {
-        lineItems.forEach((item, index) => {
-          if (item.description) {
-            params.append(`Item${index + 1}Description`, item.description);
-          }
-          if (item.unitPrice || item.totalPrice) {
-            const itemAmount = item.totalPrice || (item.unitPrice * (item.quantity || 1));
-            params.append(`Item${index + 1}Amount`, parseFloat(itemAmount).toFixed(2));
-          }
-          if (item.quantity) {
-            params.append(`Item${index + 1}Quantity`, item.quantity);
-          }
-        });
-      }
-
-      // Construct the hosted payment URL
-      const checkoutUrl = `${this.paymentPageBaseURL}/Link2Pay/${udid}?${params.toString()}`;
-
-      this.logger.info('Payment link created successfully', {
-        udid,
-        checkoutUrl,
-        invoiceNumber: invoice.number
+      this.logger.info('Invoice created successfully', {
+        invoiceId,
+        invoiceNumber,
+        accessCode,
+        checkoutUrl
       });
 
       return {
         success: true,
-        paymentLinkId: `link2pay_${Date.now()}`, // Generate unique ID
-        mxPaymentLinkId: udid, // Store device UDID
+        paymentLinkId: `invoice_${invoiceId}`,
+        mxInvoiceId: invoiceId,
+        mxInvoiceNumber: invoiceNumber,
+        accessCode,
         checkoutUrl,
-        status: 'created'
+        status: 'created',
+        invoiceData: response.data
       };
 
     } catch (error) {
-      this.logger.error('Failed to create payment link', {
+      this.logger.error('Failed to create invoice', {
         error: error.message,
         response: error.response?.data,
         invoiceNumber: paymentData.invoice?.number
       });
 
-      throw new Error(`Payment link creation failed: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Invoice creation failed: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Send invoice receipt to customer
+   * @param {number} invoiceId - Invoice ID
+   * @param {string} email - Customer email
+   * @param {string} phone - Customer phone (optional)
+   * @returns {Promise<Object>} - Receipt send response
+   */
+  async sendInvoiceReceipt(invoiceId, email, phone = null) {
+    try {
+      this.logger.info('Sending invoice receipt', { invoiceId, email, phone });
+
+      const contacts = phone ? `${email},${encodeURIComponent(phone)}` : email;
+      const url = `/invoicereceipt?id=${invoiceId}&contact=${contacts}`;
+
+      await this.client.post(url);
+
+      this.logger.info('Invoice receipt sent successfully', { invoiceId, email });
+
+      return {
+        success: true,
+        invoiceId,
+        sentTo: { email, phone }
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to send invoice receipt', {
+        error: error.message,
+        response: error.response?.data,
+        invoiceId
+      });
+
+      throw new Error(`Invoice receipt send failed: ${error.response?.data?.message || error.message}`);
     }
   }
 

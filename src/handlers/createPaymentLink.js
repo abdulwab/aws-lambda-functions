@@ -85,12 +85,41 @@ exports.handler = async (event, context) => {
       customerEmail: paymentData.customer.email
     });
 
-    // Create payment link with MX Merchant
+    // Create invoice with MX Merchant
     const mxResponse = await mxMerchantService.createPaymentLink(paymentData);
+
+    // Send MX Invoice receipt (built-in email/SMS from MX Merchant)
+    if (requestBody.sendMXReceipt !== false) {
+      try {
+        logger.info('Sending MX Invoice receipt', {
+          invoiceId: mxResponse.mxInvoiceId,
+          email: paymentData.customer.email,
+          phone: paymentData.customer.phone
+        });
+
+        await mxMerchantService.sendInvoiceReceipt(
+          mxResponse.mxInvoiceId,
+          paymentData.customer.email,
+          paymentData.customer.phone
+        );
+
+        logger.info('MX Invoice receipt sent successfully', {
+          invoiceId: mxResponse.mxInvoiceId
+        });
+      } catch (mxReceiptError) {
+        logger.error('Failed to send MX Invoice receipt', {
+          error: mxReceiptError.message,
+          invoiceId: mxResponse.mxInvoiceId
+        });
+        // Don't fail the whole request if MX receipt fails
+      }
+    }
 
     // Store payment link in DynamoDB
     const dbRecord = await dynamoService.createPaymentLink({
       mxPaymentLinkId: mxResponse.paymentLinkId,
+      mxInvoiceId: mxResponse.mxInvoiceId,
+      mxInvoiceNumber: mxResponse.mxInvoiceNumber,
       checkoutUrl: mxResponse.checkoutUrl,
       amount: paymentData.amount,
       currency: paymentData.currency,
@@ -212,6 +241,9 @@ exports.handler = async (event, context) => {
     const responseData = {
       paymentLinkId: dbRecord.paymentLinkId,
       mxPaymentLinkId: mxResponse.paymentLinkId,
+      mxInvoiceId: mxResponse.mxInvoiceId,
+      mxInvoiceNumber: mxResponse.mxInvoiceNumber,
+      accessCode: mxResponse.accessCode,
       checkoutUrl: mxResponse.checkoutUrl,
       status: dbRecord.status,
       amount: dbRecord.amount,
