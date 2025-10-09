@@ -138,21 +138,33 @@ class MXMerchantService {
       });
 
       // Build purchases array from lineItems or create default
+      // Note: MX Invoice API requires quantity to be an integer
+      // If fractional quantity is needed, adjust the price instead
       const purchases = lineItems && lineItems.length > 0 
-        ? lineItems.map(item => ({
-            id: -1,
-            productName: item.description || 'Service',
-            price: parseFloat(item.unitPrice || item.totalPrice || amount),
-            quantity: item.quantity || 1,
-            discount: 0,
-            totalAmount: parseFloat(item.totalPrice || (item.unitPrice * (item.quantity || 1))).toFixed(2),
-            taxCategory: {
-              name: 'No Tax',
-              code: 'No Tax',
+        ? lineItems.map(item => {
+            const qty = item.quantity || 1;
+            const totalAmount = parseFloat(item.totalPrice || (item.unitPrice * qty));
+            
+            // If quantity is not an integer, convert to integer=1 and adjust price
+            const isIntegerQty = Number.isInteger(qty);
+            const finalQuantity = isIntegerQty ? parseInt(qty) : 1;
+            const finalPrice = isIntegerQty ? parseFloat(item.unitPrice || totalAmount) : totalAmount;
+            
+            return {
               id: -1,
-              taxRate: 0
-            }
-          }))
+              productName: item.description || 'Service',
+              price: finalPrice,
+              quantity: finalQuantity,
+              discount: 0,
+              totalAmount: totalAmount.toFixed(2),
+              taxCategory: {
+                name: 'No Tax',
+                code: 'No Tax',
+                id: -1,
+                taxRate: 0
+              }
+            };
+          })
         : [{
             id: -1,
             productName: invoice.description || 'Payment',
