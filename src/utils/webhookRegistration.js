@@ -88,22 +88,23 @@ class WebhookRegistration {
   async listNotifications() {
     try {
       console.log('\n📋 Fetching existing notifications...');
-      const response = await this.client.get('/notification', {
+      const response = await this.client.get('/subscription', {
         params: { merchantId: this.merchantId }
       });
       
-      console.log(`\n✅ Found ${response.data.length} notification(s):\n`);
-      response.data.forEach((notif, index) => {
+      const notifications = response.data.records || response.data || [];
+      console.log(`\n✅ Found ${notifications.length} notification(s):\n`);
+      notifications.forEach((notif, index) => {
         console.log(`${index + 1}. ID: ${notif.id}`);
         console.log(`   Event Type: ${notif.eventType}`);
         console.log(`   Events: ${notif.events?.join(', ') || 'N/A'}`);
-        console.log(`   URL: ${notif.notifyUrl}`);
+        console.log(`   URL: ${notif.callbackUrl || notif.notifyUrl}`);
         console.log(`   Enabled: ${notif.enabled}`);
         console.log(`   Merchant ID: ${notif.merchantId}`);
         console.log('');
       });
       
-      return response.data;
+      return notifications;
     } catch (error) {
       console.error('❌ Failed to list notifications:', error.response?.data || error.message);
       throw error;
@@ -112,6 +113,7 @@ class WebhookRegistration {
 
   /**
    * Register new webhook notification
+   * Note: MX Merchant uses PUT (not POST) to create subscriptions
    */
   async registerWebhook() {
     try {
@@ -121,32 +123,29 @@ class WebhookRegistration {
       console.log(`   Merchant ID: ${this.merchantId}`);
       console.log(`   Webhook URL: ${webhookUrl}`);
       
+      // MX Merchant subscription payload format
+      // See: https://developer.mxmerchant.com/docs/notifications-1#get-notifications
       const notificationData = {
+        sendWebhook: true,
+        callbackUrl: webhookUrl,
+        sources: 'QuickPay, API, Recurring, Invoice, MXExpress, MXRetail',
         merchantId: parseInt(this.merchantId),
-        eventType: 'Invoice',
-        notifyUrl: webhookUrl,
-        enabled: true,
-        events: [
-          'Paid',
-          'PartiallyPaid',
-          'Unpaid',
-          'Failed',
-          'Cancelled',
-          'Voided'
-        ]
+        threshold: 0 // Send notification for all amounts
       };
 
-      console.log('\n📤 Sending registration request...');
+      console.log('\n📤 Sending registration request (using PUT method)...');
       console.log(JSON.stringify(notificationData, null, 2));
 
-      const response = await this.client.post('/notification?echo=true', notificationData);
+      // MX Merchant uses PUT to create subscriptions (not POST)
+      const response = await this.client.put('/subscription?echo=true', notificationData);
       
       console.log('\n✅ Webhook registered successfully!');
-      console.log('\n📋 Notification Details:');
+      console.log('\n📋 Subscription Details:');
       console.log(JSON.stringify(response.data, null, 2));
       
       console.log('\n🎉 All done! Your webhook is now active.');
-      console.log('\n📝 Save this Notification ID for future reference: ' + response.data.id);
+      console.log('\n📝 This will send notifications for: Payment, Decline, Refund events');
+      console.log('📝 From sources: QuickPay, API, Recurring, Invoice, MXExpress, MXRetail');
       
       return response.data;
     } catch (error) {
@@ -162,28 +161,22 @@ class WebhookRegistration {
     try {
       const webhookUrl = this.getWebhookUrl();
       
-      console.log(`\n📝 Updating webhook notification ID: ${notificationId}...`);
+      console.log(`\n📝 Updating webhook subscription ID: ${notificationId}...`);
       
       const updateData = {
         id: parseInt(notificationId),
         merchantId: parseInt(this.merchantId),
-        eventType: 'Invoice',
-        notifyUrl: webhookUrl,
+        sendWebhook: true,
+        callbackUrl: webhookUrl,
+        sources: ['Invoice'],
         enabled: true,
-        events: [
-          'Paid',
-          'PartiallyPaid',
-          'Unpaid',
-          'Failed',
-          'Cancelled',
-          'Voided'
-        ]
+        threshold: 0
       };
 
       console.log('\n📤 Sending update request...');
       console.log(JSON.stringify(updateData, null, 2));
 
-      const response = await this.client.put(`/notification/${notificationId}?echo=true`, updateData);
+      const response = await this.client.put(`/subscription/${notificationId}?echo=true`, updateData);
       
       console.log('\n✅ Webhook updated successfully!');
       console.log(JSON.stringify(response.data, null, 2));
@@ -200,9 +193,9 @@ class WebhookRegistration {
    */
   async deleteWebhook(notificationId) {
     try {
-      console.log(`\n🗑️  Deleting webhook notification ID: ${notificationId}...`);
+      console.log(`\n🗑️  Deleting webhook subscription ID: ${notificationId}...`);
       
-      await this.client.delete(`/notification/${notificationId}`);
+      await this.client.delete(`/subscription/${notificationId}`);
       
       console.log('\n✅ Webhook deleted successfully!');
       
@@ -217,16 +210,16 @@ class WebhookRegistration {
    */
   async getNotification(notificationId) {
     try {
-      console.log(`\n📋 Fetching notification ID: ${notificationId}...`);
+      console.log(`\n📋 Fetching subscription ID: ${notificationId}...`);
       
-      const response = await this.client.get(`/notification/${notificationId}`);
+      const response = await this.client.get(`/subscription/${notificationId}`);
       
-      console.log('\n✅ Notification Details:');
+      console.log('\n✅ Subscription Details:');
       console.log(JSON.stringify(response.data, null, 2));
       
       return response.data;
     } catch (error) {
-      console.error('\n❌ Failed to fetch notification:', error.response?.data || error.message);
+      console.error('\n❌ Failed to fetch subscription:', error.response?.data || error.message);
       throw error;
     }
   }
