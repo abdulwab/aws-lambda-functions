@@ -30,12 +30,6 @@ exports.handler = async (event, context) => {
       return error('Invalid JSON in webhook payload', 400);
     }
 
-    // Validate webhook data
-    if (!webhookData.paymentLinkId || !webhookData.eventType) {
-      logger.warn('Invalid webhook payload', { webhookData });
-      return error('Invalid webhook payload: missing paymentLinkId or eventType', 400);
-    }
-
     // Initialize services
     const mxMerchantService = new MXMerchantService();
     const dynamoService = new DynamoService();
@@ -45,55 +39,69 @@ exports.handler = async (event, context) => {
     const processedWebhook = mxMerchantService.processWebhook(webhookData);
 
     logger.info('Processing webhook event', {
-      paymentLinkId: processedWebhook.paymentLinkId,
+      invoiceId: processedWebhook.invoiceId,
       eventType: processedWebhook.eventType,
       status: processedWebhook.status
     });
 
-    // Find the payment link in our database using MX Merchant ID
-    // We need to scan for records with matching mxPaymentLinkId
-    const paymentLinks = await dynamoService.getPaymentLinksByStatus('created');
-    const paymentLink = paymentLinks.find(link => 
-      link.mxPaymentLinkId === processedWebhook.paymentLinkId
+    // Find the payment link in our database using MX Invoice ID
+    // Scan for records with matching mxInvoiceId
+    const allPaymentLinks = await dynamoService.getPaymentLinksByStatus('created');
+    let paymentLink = allPaymentLinks.find(link => 
+      link.mxInvoiceId === processedWebhook.invoiceId
     );
 
+    // If not found in 'created', check other statuses
     if (!paymentLink) {
-      logger.warn('Payment link not found in database', {
-        mxPaymentLinkId: processedWebhook.paymentLinkId
+      const pendingLinks = await dynamoService.getPaymentLinksByStatus('pending');
+      paymentLink = pendingLinks.find(link => link.mxInvoiceId === processedWebhook.invoiceId);
+    }
+
+    if (!paymentLink) {
+      logger.warn('Invoice not found in database', {
+        mxInvoiceId: processedWebhook.invoiceId
       });
-      return error('Payment link not found', 404);
+      return error('Invoice not found', 404);
     }
 
     // Determine new status based on event type
     let newStatus;
     let additionalData = {
       transactionId: processedWebhook.transactionId,
-      webhookReceivedAt: processedWebhook.timestamp
+      paymentMethod: processedWebhook.paymentMethod,
+      paidAmount: processedWebhook.paidAmount,
+      balance: processedWebhook.balance,
+      webhookReceivedAt: processedWebhook.timestamp,
+      invoiceNumber: processedWebhook.metadata.invoiceNumber,
+      receiptNumber: processedWebhook.metadata.receiptNumber
     };
 
-    switch (processedWebhook.eventType.toLowerCase()) {
-      case 'payment.completed':
-      case 'payment.successful':
-        newStatus = 'completed';
-        additionalData.completedAt = processedWebhook.timestamp;
-        break;
-      case 'payment.failed':
-      case 'payment.declined':
-        newStatus = 'failed';
-        additionalData.failedAt = processedWebhook.timestamp;
-        additionalData.failureReason = processedWebhook.metadata?.reason || 'Payment failed';
-        break;
-      case 'payment.cancelled':
-      case 'payment.expired':
-        newStatus = 'cancelled';
-        additionalData.cancelledAt = processedWebhook.timestamp;
-        break;
-      default:
-        logger.warn('Unknown webhook event type', {
-          eventType: processedWebhook.eventType
-        });
-        newStatus = 'unknown';
-        additionalData.unknownEventType = processedWebhook.eventType;
+    const eventType = (processedWebhook.eventType || '').toLowerCase();
+
+    // Map MX Invoice events to internal status
+    if (eventType.includes('paid') || eventType.includes('payment.completed') || processedWebhook.status === 'completed') {
+      newStatus = 'completed';
+      additionalData.completedAt = processedWebhook.timestamp;
+    } else if (eventType.includes('fail') || eventType.includes('declined') || processedWebhook.status === 'failed') {
+      newStatus = 'failed';
+      additionalData.failedAt = processedWebhook.timestamp;
+      additionalData.failureReason = processedWebhook.metadata?.reason || 'Payment failed';
+    } else if (eventType.includes('partial') || processedWebhook.status === 'partial') {
+      newStatus = 'partial';
+      additionalData.partiallyPaidAt = processedWebhook.timestamp;
+    } else if (eventType.includes('cancel') || eventType.includes('void') || eventType.includes('expired')) {
+      newStatus = 'cancelled';
+      additionalData.cancelledAt = processedWebhook.timestamp;
+    } else if (eventType.includes('sent') || eventType.includes('created')) {
+      newStatus = 'pending';
+      additionalData.sentAt = processedWebhook.timestamp;
+    } else {
+      logger.warn('Unknown webhook event type', {
+        eventType: processedWebhook.eventType,
+        mappedStatus: processedWebhook.status
+      });
+      newStatus = processedWebhook.status || 'unknown';
+      additionalData.unknownEventType = processedWebhook.eventType;
     }
 
     // Update payment link status in database
@@ -170,10 +178,14 @@ exports.handler = async (event, context) => {
     // Prepare response
     const responseData = {
       paymentLinkId: paymentLink.paymentLinkId,
-      mxPaymentLinkId: processedWebhook.paymentLinkId,
+      mxInvoiceId: processedWebhook.invoiceId,
+      mxInvoiceNumber: processedWebhook.metadata.invoiceNumber,
       status: newStatus,
       eventType: processedWebhook.eventType,
       transactionId: processedWebhook.transactionId,
+      paidAmount: processedWebhook.paidAmount,
+      balance: processedWebhook.balance,
+      paymentMethod: processedWebhook.paymentMethod,
       updatedAt: updatedRecord.updatedAt,
       smsNotification: smsResult ? {
         sent: true,

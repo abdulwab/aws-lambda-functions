@@ -324,29 +324,48 @@ class MXMerchantService {
   }
 
   /**
-   * Process webhook notification
-   * @param {Object} webhookData - Webhook payload
+   * Process webhook notification from MX Merchant
+   * @param {Object} webhookData - Webhook payload from MX Merchant
    * @returns {Object} - Processed webhook data
    */
   processWebhook(webhookData) {
     try {
-      this.logger.info('Processing webhook', {
-        eventType: webhookData.eventType,
-        paymentLinkId: webhookData.paymentLinkId
+      this.logger.info('Processing MX Merchant webhook', {
+        eventType: webhookData.eventType || webhookData.event,
+        invoiceId: webhookData.invoiceId || webhookData.id,
+        rawData: webhookData
       });
 
+      // MX Merchant Invoice webhook structure
+      // Event types: invoice.paid, invoice.payment_failed, invoice.sent, etc.
+      const eventType = webhookData.eventType || webhookData.event || 'unknown';
+      const invoiceId = webhookData.invoiceId || webhookData.id;
+      const invoiceData = webhookData.invoice || webhookData.data || webhookData;
+
       const processedData = {
-        paymentLinkId: webhookData.paymentLinkId,
-        eventType: webhookData.eventType,
-        status: webhookData.status,
-        amount: webhookData.amount,
-        currency: webhookData.currency,
-        transactionId: webhookData.transactionId,
-        timestamp: webhookData.timestamp || new Date().toISOString(),
-        metadata: webhookData.metadata || {}
+        invoiceId: invoiceId,
+        eventType: eventType,
+        status: this.mapInvoiceStatus(invoiceData.status || webhookData.status),
+        amount: parseFloat(invoiceData.totalAmount || invoiceData.amount || webhookData.amount || 0),
+        currency: invoiceData.currency || 'USD',
+        transactionId: invoiceData.transactionId || webhookData.transactionId,
+        paymentMethod: invoiceData.paymentMethod || webhookData.paymentMethod,
+        paidAmount: parseFloat(invoiceData.paidAmount || 0),
+        balance: parseFloat(invoiceData.balance || 0),
+        timestamp: webhookData.timestamp || webhookData.created || new Date().toISOString(),
+        metadata: {
+          invoiceNumber: invoiceData.invoiceNumber || webhookData.invoiceNumber,
+          receiptNumber: invoiceData.receiptNumber || webhookData.receiptNumber,
+          customerEmail: invoiceData.customer?.email || webhookData.customerEmail,
+          raw: webhookData
+        }
       };
 
-      this.logger.info('Webhook processed successfully', processedData);
+      this.logger.info('Webhook processed successfully', {
+        invoiceId: processedData.invoiceId,
+        eventType: processedData.eventType,
+        status: processedData.status
+      });
 
       return processedData;
 
@@ -358,6 +377,24 @@ class MXMerchantService {
 
       throw new Error(`Webhook processing failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Map MX Invoice status to internal status
+   * @param {string} mxStatus - MX Merchant invoice status
+   * @returns {string} - Internal status
+   */
+  mapInvoiceStatus(mxStatus) {
+    const statusMap = {
+      'Paid': 'completed',
+      'PartiallyPaid': 'partial',
+      'Unpaid': 'pending',
+      'Cancelled': 'cancelled',
+      'Voided': 'cancelled',
+      'Failed': 'failed'
+    };
+
+    return statusMap[mxStatus] || 'unknown';
   }
 }
 
