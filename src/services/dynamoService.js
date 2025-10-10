@@ -30,6 +30,8 @@ class DynamoService {
       const record = {
         paymentLinkId,
         mxPaymentLinkId: paymentLinkData.mxPaymentLinkId,
+        mxInvoiceId: paymentLinkData.mxInvoiceId,
+        mxInvoiceNumber: paymentLinkData.mxInvoiceNumber,
         checkoutUrl: paymentLinkData.checkoutUrl,
         status: 'created',
         amount: paymentLinkData.amount,
@@ -39,6 +41,13 @@ class DynamoService {
         lineItems: paymentLinkData.lineItems || [],
         smsStatus: 'pending', // SMS notification status
         emailStatus: 'pending', // Email notification status
+        eventHistory: [{
+          eventType: 'created',
+          status: 'created',
+          timestamp: now,
+          source: 'system',
+          description: 'Payment link created'
+        }], // Event history for tracking all status changes
         createdAt: now,
         updatedAt: now,
         ttl: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days TTL
@@ -232,6 +241,62 @@ class DynamoService {
       });
 
       throw new Error(`Failed to query payment links by customer: ${error.message}`);
+    }
+  }
+
+  /**
+   * Add event to payment link history
+   * @param {string} paymentLinkId - Payment link ID
+   * @param {Object} eventData - Event data to add
+   * @returns {Promise<Object>} - Updated record
+   */
+  async addEventToHistory(paymentLinkId, eventData) {
+    try {
+      const now = new Date().toISOString();
+      
+      const event = {
+        eventType: eventData.eventType,
+        status: eventData.status,
+        timestamp: eventData.timestamp || now,
+        source: eventData.source || 'webhook',
+        description: eventData.description || `Status changed to ${eventData.status}`,
+        metadata: eventData.metadata || {}
+      };
+
+      this.logger.info('Adding event to history', {
+        paymentLinkId,
+        eventType: event.eventType,
+        status: event.status
+      });
+
+      const result = await this.dynamodb.update({
+        TableName: this.tableName,
+        Key: { paymentLinkId },
+        UpdateExpression: 'SET eventHistory = list_append(if_not_exists(eventHistory, :empty_list), :event), updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':event': [event],
+          ':empty_list': [],
+          ':updatedAt': now
+        },
+        ReturnValues: 'ALL_NEW'
+      }).promise();
+
+      this.logger.info('Event added to history', {
+        paymentLinkId,
+        eventType: event.eventType,
+        totalEvents: result.Attributes.eventHistory?.length || 0
+      });
+
+      return result.Attributes;
+
+    } catch (error) {
+      this.logger.error('Failed to add event to history', {
+        error: error.message,
+        paymentLinkId,
+        eventType: eventData.eventType
+      });
+
+      throw new Error(`Failed to add event to history: ${error.message}`);
     }
   }
 
