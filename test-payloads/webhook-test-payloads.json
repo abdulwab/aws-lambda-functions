@@ -1,0 +1,114 @@
+{
+  "paid_event": {
+    "eventType": "invoice.paid",
+    "invoiceId": 3000295,
+    "status": "Paid",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "Paid",
+      "totalAmount": 487.50,
+      "paidAmount": 487.50,
+      "balance": 0,
+      "transactionId": "txn_abc123xyz",
+      "receiptNumber": "RCP-2025-001",
+      "paymentMethod": "Visa - 4242",
+      "customer": {
+        "email": "customer@example.com",
+        "name": "John Doe"
+      }
+    },
+    "timestamp": "2025-10-10T14:30:00Z"
+  },
+  "failed_event": {
+    "eventType": "invoice.failed",
+    "invoiceId": 3000295,
+    "status": "Failed",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "Failed",
+      "totalAmount": 487.50,
+      "paidAmount": 0,
+      "balance": 487.50,
+      "customer": {
+        "email": "customer@example.com"
+      }
+    },
+    "metadata": {
+      "reason": "Card declined - insufficient funds"
+    },
+    "timestamp": "2025-10-10T14:30:00Z"
+  },
+  "unpaid_event": {
+    "eventType": "invoice.sent",
+    "invoiceId": 3000295,
+    "status": "Unpaid",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "Unpaid",
+      "totalAmount": 487.50,
+      "paidAmount": 0,
+      "balance": 487.50,
+      "customer": {
+        "email": "customer@example.com"
+      }
+    },
+    "timestamp": "2025-10-10T14:25:00Z"
+  },
+  "partial_payment_event": {
+    "eventType": "invoice.partiallypaid",
+    "invoiceId": 3000295,
+    "status": "PartiallyPaid",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "PartiallyPaid",
+      "totalAmount": 487.50,
+      "paidAmount": 200.00,
+      "balance": 287.50,
+      "transactionId": "txn_partial_123",
+      "paymentMethod": "Visa - 4242",
+      "customer": {
+        "email": "customer@example.com"
+      }
+    },
+    "timestamp": "2025-10-10T14:30:00Z"
+  },
+  "cancelled_event": {
+    "eventType": "invoice.cancelled",
+    "invoiceId": 3000295,
+    "status": "Cancelled",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "Cancelled",
+      "totalAmount": 487.50,
+      "paidAmount": 0,
+      "balance": 487.50,
+      "customer": {
+        "email": "customer@example.com"
+      }
+    },
+    "timestamp": "2025-10-10T14:30:00Z"
+  },
+  "voided_event": {
+    "eventType": "invoice.voided",
+    "invoiceId": 3000295,
+    "status": "Voided",
+    "invoice": {
+      "id": 3000295,
+      "invoiceNumber": "INV-2025-001",
+      "status": "Voided",
+      "totalAmount": 487.50,
+      "paidAmount": 0,
+      "balance": 487.50,
+      "customer": {
+        "email": "customer@example.com"
+      }
+    },
+    "timestamp": "2025-10-10T14:30:00Z"
+  }
+}
+
