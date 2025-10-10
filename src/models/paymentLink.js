@@ -6,6 +6,8 @@ class PaymentLink {
   constructor(data) {
     this.paymentLinkId = data.paymentLinkId;
     this.mxPaymentLinkId = data.mxPaymentLinkId;
+    this.mxInvoiceId = data.mxInvoiceId;
+    this.mxInvoiceNumber = data.mxInvoiceNumber;
     this.checkoutUrl = data.checkoutUrl;
     this.status = data.status;
     this.amount = data.amount;
@@ -13,6 +15,9 @@ class PaymentLink {
     this.invoice = data.invoice;
     this.customer = data.customer;
     this.lineItems = data.lineItems || [];
+    this.smsStatus = data.smsStatus;
+    this.emailStatus = data.emailStatus;
+    this.eventHistory = data.eventHistory || [];
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
     this.transactionId = data.transactionId;
@@ -141,6 +146,29 @@ class PaymentLink {
       style: 'currency',
       currency: this.currency || 'USD'
     }).format(this.amount);
+  }
+
+  /**
+   * Get most recent event from history
+   * @returns {Object|null} - Most recent event or null
+   */
+  getMostRecentEvent() {
+    if (!this.eventHistory || this.eventHistory.length === 0) {
+      return null;
+    }
+    return this.eventHistory[this.eventHistory.length - 1];
+  }
+
+  /**
+   * Get events by type
+   * @param {string} eventType - Event type to filter by
+   * @returns {Array} - Filtered events
+   */
+  getEventsByType(eventType) {
+    if (!this.eventHistory) {
+      return [];
+    }
+    return this.eventHistory.filter(event => event.eventType === eventType);
   }
 
   /**
